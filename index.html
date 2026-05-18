@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barricade - Premium Strategic Board Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --p1-color: #ef4444; 
+            --p2-color: #3b82f6; 
+            --board-bg: #1e293b; 
+            --wall-thickness: 8px;
+            --cell-bg: #334155; 
+            --cell-hover: #475569; 
+            --wall-slot-bg: #0f172a; 
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(circle at top right, #111827, #030712);
+            color: #f3f4f6;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .board-wrapper {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: min(70vh, 650px);
+            margin: 0 auto;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px var(--curr-glow)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 15px var(--curr-glow)); }
+        }
+        .active-glow { animation: pulse-glow 2s infinite ease-in-out; }
+        .slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="w-full py-4 px-6 glass-panel border-b border-gray-800 flex items-center justify-between z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-amber-500 to-red-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
+                <i class="fa-solid fa-chess-rook text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-100 to-gray-400 flex items-center gap-2">
+                    BARRICADE
+                    <span id="roomCodeDisplay" class="hidden text-xs font-mono bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30"></span>
+                </h1>
+                <p class="text-xs text-gray-400 font-medium tracking-widest uppercase" id="networkStatus">Local Mode</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button id="multiplayerBtn" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2" title="Play Online">
+                <i class="fa-solid fa-globe"></i>
+                <span class="hidden sm:inline">Online</span>
+            </button>
+            <button id="rulesBtn" class="p-3 rounded-xl bg-gray-800/60 hover:bg-gray-700/80 text-white transition-all border border-gray-700/50 flex items-center justify-center">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+            <button id="settingsBtn" class="p-3 rounded-xl bg-gray-800/60 hover:bg-gray-700/80 text-white transition-all border border-gray-700/50 flex items-center justify-center">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6 items-center justify-center">
+        <div class="w-full lg:w-64 flex lg:flex-col gap-4 justify-between lg:justify-start">
+            <div id="p1Card" class="flex-1 glass-panel p-4 rounded-2xl border-l-4 border-l-red-500 transition-all duration-300 flex flex-col gap-2 relative overflow-hidden">
+                <div class="absolute right-3 top-3 w-3 h-3 rounded-full bg-red-500/20 flex items-center justify-center"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span></div>
+                <div class="flex items-center gap-3">
+                    <div id="p1Avatar" class="w-10 h-10 rounded-xl flex items-center justify-center shadow-md shadow-red-500/20 text-white font-bold" style="background-color: var(--p1-color)">P1</div>
+                    <div><h3 class="font-bold text-sm text-white">Player 1</h3><p class="text-xs text-gray-400">Goal: Far Top Side</p></div>
+                </div>
+                <div class="mt-2 bg-black/30 px-3 py-1.5 rounded-lg flex justify-between items-center">
+                    <span class="text-xs text-gray-400 font-medium">Walls Left:</span><span id="p1WallCount" class="text-sm font-extrabold text-white">10</span>
+                </div>
+            </div>
+
+            <div id="p2Card" class="flex-1 glass-panel p-4 rounded-2xl border-l-4 border-l-blue-500 transition-all duration-300 flex flex-col gap-2 relative overflow-hidden">
+                <div class="flex items-center gap-3">
+                    <div id="p2Avatar" class="w-10 h-10 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20 text-white font-bold" style="background-color: var(--p2-color)">P2</div>
+                    <div><h3 id="p2Name" class="font-bold text-sm text-white">Player 2</h3><p class="text-xs text-gray-400">Goal: Far Bottom Side</p></div>
+                </div>
+                <div class="mt-2 bg-black/30 px-3 py-1.5 rounded-lg flex justify-between items-center">
+                    <span class="text-xs text-gray-400 font-medium">Walls Left:</span><span id="p2WallCount" class="text-sm font-extrabold text-white">10</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col items-center justify-center w-full max-w-xl relative">
+            <div id="onlineWaitingOverlay" class="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center hidden">
+                <i class="fa-solid fa-spinner fa-spin text-4xl text-indigo-500 mb-4"></i>
+                <h2 class="text-xl font-bold text-white mb-2">Waiting for Opponent...</h2>
+                <p class="text-gray-400 text-sm mb-6">Share this code or link with your friend:</p>
+                <div class="bg-gray-900 border border-gray-700 px-6 py-3 rounded-xl flex items-center gap-4">
+                    <span id="overlayRoomCode" class="font-mono text-3xl font-black text-white tracking-widest"></span>
+                    <button id="copyCodeBtn" class="text-indigo-400 hover:text-indigo-300 transition-all text-xl" title="Copy Code"><i class="fa-regular fa-copy"></i></button>
+                </div>
+                <button id="copyLinkBtn" class="mt-4 px-6 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-link"></i> Copy Invite Link
+                </button>
+            </div>
+
+            <div class="w-full flex justify-between items-center mb-4 px-1 gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs uppercase tracking-wider font-bold text-gray-400">Tool:</span>
+                    <div class="inline-flex rounded-xl p-1 bg-gray-950/40 border border-gray-800">
+                        <button id="toolMoveBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center gap-1.5"><i class="fa-solid fa-arrows-up-down-left-right"></i> Move</button>
+                        <button id="toolWallBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition-all flex items-center gap-1.5"><i class="fa-solid fa-grip-lines-vertical"></i> Wall</button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs uppercase tracking-wider font-bold text-gray-400">Orientation:</span>
+                    <button id="rotateWallBtn" class="px-4 py-1.5 rounded-xl bg-gray-800/80 hover:bg-gray-700/80 text-white text-xs font-semibold transition-all flex items-center gap-2 border border-gray-700/50">
+                        <i id="rotateIcon" class="fa-solid fa-rotate"></i><span id="rotateText">Horizontal</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="board-wrapper relative rounded-3xl overflow-hidden shadow-2xl shadow-black/60 p-4 border border-gray-700/40" style="background-color: var(--board-bg);">
+                <div id="board" class="w-full h-full grid select-none relative"></div>
+            </div>
+            <p class="text-xs text-gray-500 mt-4 text-center"><kbd class="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700 font-sans text-[10px]">Space</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700 font-sans text-[10px]">Right Click</kbd> to rotate wall.</p>
+        </div>
+
+        <div class="w-full lg:w-64 flex flex-col gap-4">
+            <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3">
+                <h3 class="font-bold text-sm tracking-wide uppercase text-gray-400">Tactical Registry</h3>
+                <div id="moveLog" class="h-36 overflow-y-auto bg-black/20 rounded-xl p-2.5 text-xs font-mono space-y-1 text-gray-400 flex flex-col">
+                    <div class="text-indigo-400 text-[10px] uppercase tracking-wider border-b border-gray-800/60 pb-1 mb-1">System Initialized</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                    <button id="undoBtn" class="py-2.5 rounded-xl bg-gray-800/60 hover:bg-gray-700/80 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 border border-gray-700/50 disabled:opacity-40" disabled><i class="fa-solid fa-rotate-left"></i> Undo</button>
+                    <button id="resetBtn" class="py-2.5 rounded-xl bg-red-950/20 hover:bg-red-900/30 text-red-400 text-xs font-bold transition-all flex items-center justify-center gap-2 border border-red-900/30"><i class="fa-solid fa-arrow-rotate-right"></i> Reset</button>
+                </div>
+                <button id="leaveRoomBtn" class="hidden py-2.5 w-full rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 mt-2 shadow-lg"><i class="fa-solid fa-right-from-bracket"></i> Leave Room</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="multiplayerModal" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-panel w-full max-w-md p-6 rounded-3xl shadow-2xl border border-gray-700/60 m-4 slide-in">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-800 mb-6">
+                <div class="flex items-center gap-2"><i class="fa-solid fa-globe text-indigo-400 text-xl"></i><h2 class="text-xl font-black text-white">Online Lobby</h2></div>
+                <button id="closeMultiplayerBtn" class="text-gray-400 hover:text-white transition-all text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-6">
+                <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-800 text-center">
+                    <h3 class="text-sm font-bold text-gray-300 mb-3">Host a New Match</h3>
+                    <button id="createRoomBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm tracking-wide shadow-lg transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-plus"></i> Generate Room Code</button>
+                </div>
+                <div class="relative flex items-center py-2"><div class="flex-grow border-t border-gray-700"></div><span class="flex-shrink-0 mx-4 text-gray-500 text-xs font-semibold uppercase tracking-widest">OR</span><div class="flex-grow border-t border-gray-700"></div></div>
+                <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-800 text-center">
+                    <h3 class="text-sm font-bold text-gray-300 mb-3">Join a Friend</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="joinRoomCode" placeholder="Enter 5-Letter Code" maxlength="5" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-center text-lg font-mono text-white font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase placeholder:text-sm placeholder:font-sans placeholder:font-normal">
+                        <button id="joinRoomBtn" class="px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm shadow-lg transition-all">Join</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-panel w-full max-w-md p-6 rounded-3xl shadow-2xl border border-gray-700/60 m-4 slide-in max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-800 mb-6">
+                <div class="flex items-center gap-2"><i class="fa-solid fa-gears text-indigo-400 text-lg"></i><h2 class="text-xl font-black text-white">System Settings</h2></div>
+                <button id="closeSettingsBtn" class="text-gray-400 hover:text-white transition-all text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-5">
+                <div class="flex flex-col gap-2"><label class="text-xs font-bold uppercase tracking-wider text-gray-400">Local Match Mode</label>
+                    <select id="gameModeSelect" class="w-full bg-gray-950/60 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white font-medium outline-none"><option value="pvp">Player vs Player (Local)</option><option value="pve" selected>Player vs AI Bot</option></select>
+                </div>
+                <div id="aiDifficultyWrapper" class="flex flex-col gap-2"><label class="text-xs font-bold uppercase tracking-wider text-gray-400">AI Difficulty Level</label>
+                    <select id="aiDifficultySelect" class="w-full bg-gray-950/60 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white font-medium outline-none"><option value="easy">Level 1 (Easy)</option><option value="medium">Level 2 (Medium)</option><option value="hard" selected>Level 3 (Hard)</option></select>
+                </div>
+                <div class="flex flex-col gap-2"><label class="text-xs font-bold uppercase tracking-wider text-gray-400">Board Dimensions (NxN)</label>
+                    <select id="gridSizeSelect" class="w-full bg-gray-950/60 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white font-medium outline-none"><option value="5">5 x 5 (Blitz Mode)</option><option value="7">7 x 7 (Standard Compact)</option><option value="9" selected>9 x 9 (Quoridor Classic)</option></select>
+                </div>
+                <div class="flex flex-col gap-2"><div class="flex justify-between items-center"><label class="text-xs font-bold uppercase tracking-wider text-gray-400">Wall Supply (Per Player)</label><span id="wallCountVal" class="text-xs font-extrabold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">10</span></div><input type="range" id="wallCountSlider" min="5" max="20" value="10" step="1" class="w-full accent-indigo-500 h-1.5 bg-gray-800 rounded-lg appearance-none"></div>
+                <div class="flex flex-col gap-2"><div class="flex justify-between items-center"><label class="text-xs font-bold uppercase tracking-wider text-gray-400">Wall Thickness</label><span id="wallThickVal" class="text-xs font-extrabold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">8px</span></div><input type="range" id="wallThickSlider" min="2" max="14" value="8" step="1" class="w-full accent-indigo-500 h-1.5 bg-gray-800 rounded-lg appearance-none"></div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-center">P1 Color</label><div class="relative w-full h-11 rounded-xl overflow-hidden border border-gray-800"><input type="color" id="p1ColorPicker" value="#ef4444" class="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer bg-transparent"></div></div>
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-center">P2 Color</label><div class="relative w-full h-11 rounded-xl overflow-hidden border border-gray-800"><input type="color" id="p2ColorPicker" value="#3b82f6" class="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer bg-transparent"></div></div>
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-center">Board</label><div class="relative w-full h-11 rounded-xl overflow-hidden border border-gray-800"><input type="color" id="boardColorPicker" value="#1e293b" class="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer bg-transparent"></div></div>
+                </div>
+                <button id="applySettingsBtn" class="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm tracking-wide shadow-lg transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-circle-check"></i> Apply Configurations</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-panel w-full max-w-lg p-6 rounded-3xl shadow-2xl border border-gray-700/60 m-4 slide-in max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-800 mb-4"><div class="flex items-center gap-2"><i class="fa-solid fa-circle-info text-emerald-400 text-lg"></i><h2 class="text-xl font-black text-white">Barricade Protocols</h2></div><button id="closeRulesBtn" class="text-gray-400 hover:text-white transition-all text-lg"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="text-gray-300 space-y-4 text-sm leading-relaxed">
+                <div><h3 class="font-bold text-white mb-1 text-xs uppercase tracking-wide text-indigo-400">Winning Objective</h3><p>Be the first player to guide your pawn to <strong class="text-white">any cell in the opponent's far starting row</strong>.</p></div>
+                <div><h3 class="font-bold text-white mb-1 text-xs uppercase tracking-wide text-indigo-400">On Your Turn</h3><ul class="list-disc pl-5 space-y-1 mt-1 text-gray-400"><li><strong class="text-gray-300">Move Pawn:</strong> Shift your pawn orthogonally 1 step into an open adjacent cell.</li><li><strong class="text-gray-300">Place Wall:</strong> Drop a horizontal or vertical wall spanning 2 cell blocks.</li></ul></div>
+                <div><h3 class="font-bold text-white mb-1 text-xs uppercase tracking-wide text-indigo-400">Pawn Jumping</h3><p>When you stand face-to-face with an opponent pawn:</p><ul class="list-disc pl-5 space-y-1 mt-1 text-gray-400"><li>If the cell directly behind them is open, you may jump right over them.</li><li>If a wall or edge blocks the jump space behind them, you may leap diagonally to either the left or right of their position.</li></ul></div>
+                <div><h3 class="font-bold text-white mb-1 text-xs uppercase tracking-wide text-indigo-400">The Pathfinding Mandate</h3><p class="text-red-400 font-medium bg-red-950/20 border border-red-900/30 p-2.5 rounded-xl text-xs">Critical Constraint: You cannot place a wall if it completely blocks the remaining path of either player to their goal line.</p></div>
+            </div>
+            <button id="gotItBtn" class="w-full mt-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs tracking-wider uppercase transition-all">Acknowledge Protocols</button>
+        </div>
+    </div>
+
+    <div id="winModal" class="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-50 opacity-0 pointer-events-none transition-all duration-500">
+        <div class="text-center p-8 max-w-md w-full scale-90 transition-transform duration-500" id="winContent">
+            <div id="winBadge" class="w-24 h-24 mx-auto mb-6 rounded-3xl flex items-center justify-center text-5xl active-glow"><i class="fa-solid fa-crown text-white"></i></div>
+            <h1 class="text-4xl font-extrabold tracking-tight mb-2 text-white">Simulation Ended!</h1>
+            <p id="winnerLabel" class="text-lg font-semibold tracking-wider text-gray-400 uppercase mb-8"></p>
+            <button id="playAgainBtn" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-extrabold rounded-2xl text-sm tracking-widest uppercase shadow-xl transition-all flex items-center justify-center gap-3 w-full"><i class="fa-solid fa-gamepad text-lg"></i> Run Another Simulation</button>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div id="toast" class="bg-red-900/90 text-red-200 border border-red-700/50 px-4 py-3 rounded-2xl shadow-xl backdrop-blur-md flex items-center gap-3 text-xs font-semibold opacity-0 -translate-y-2 transition-all duration-300">
+            <i class="fa-solid fa-triangle-exclamation text-red-400 text-base"></i><span id="toastMessage">Illegal Action Blocked</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==========================================
+        //  !!! REPLACE THIS WITH YOUR FIREBASE CONFIG !!!
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "PASTE_YOUR_API_KEY_HERE",
+            authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
+            projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+            storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
+            messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
+            appId: "PASTE_YOUR_APP_ID_HERE"
+        };
+        // ==========================================
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let onlineUnsubscribe = null;
+
+        const initAuth = async () => {
+            try { await signInAnonymously(auth); } 
+            catch (e) { console.error("Auth Error:", e); showToast("Failed to connect to network."); }
+        };
+
+        initAuth();
+        
+        onAuthStateChanged(auth, user => { 
+            currentUser = user; 
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomToJoin = urlParams.get('room');
+            if (roomToJoin && user && !GameState.isOnline) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                joinOnlineRoom(roomToJoin);
+            }
+        });
+
+        function safeCopyToClipboard(text, successCallback) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; textArea.style.left = "-999999px"; textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus(); textArea.select();
+            try { document.execCommand('copy'); if (successCallback) successCallback(); } 
+            catch (err) { console.error('Copy failed', err); showToast("Failed to copy link."); }
+            document.body.removeChild(textArea);
+        }
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; let result = '';
+            for(let i = 0; i < 5; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+            return result;
+        }
+
+        const GameState = {
+            isOnline: false, roomId: null, myRole: 1, 
+            gameMode: 'pve', botDifficulty: 'hard', 
+            gridSize: 9, wallCount: 10, wallThickness: 8,
+            p1Color: '#ef4444', p2Color: '#3b82f6', boardBg: '#1e293b',
+            p1Pos: { r: 8, c: 4 }, p2Pos: { r: 0, c: 4 }, 
+            p1WallsLeft: 10, p2WallsLeft: 10, turn: 1,
+            activeTool: 'move', wallOrientation: 'H',
+            horizontalWalls: [], verticalWalls: [], history: []
+        };
+
+        let isBotThinking = false;
+
+        async function pushStateToDb(moveLogMsg) {
+            if (!GameState.isOnline || !currentUser || !GameState.roomId) return;
+            const roomRef = doc(db, 'rooms', GameState.roomId);
+            const stateToSave = {
+                gridSize: GameState.gridSize, p1Pos: GameState.p1Pos, p2Pos: GameState.p2Pos,
+                p1WallsLeft: GameState.p1WallsLeft, p2WallsLeft: GameState.p2WallsLeft, turn: GameState.turn,
+                horizontalWalls: GameState.horizontalWalls, verticalWalls: GameState.verticalWalls, lastMove: moveLogMsg || "Turn complete."
+            };
+            try { await setDoc(roomRef, { state: stateToSave }, { merge: true }); } 
+            catch (err) { console.error("Sync Error", err); showToast("Failed to sync move with server."); }
+        }
+
+        function listenToRoom(roomId) {
+            if (onlineUnsubscribe) onlineUnsubscribe();
+            const roomRef = doc(db, 'rooms', roomId);
+            onlineUnsubscribe = onSnapshot(roomRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.status === 'playing' && GameState.myRole === 1) document.getElementById('onlineWaitingOverlay').classList.add('hidden');
+                    if (data.state) {
+                        const s = data.state;
+                        GameState.gridSize = s.gridSize; GameState.p1Pos = s.p1Pos; GameState.p2Pos = s.p2Pos;
+                        GameState.p1WallsLeft = s.p1WallsLeft; GameState.p2WallsLeft = s.p2WallsLeft;
+                        GameState.turn = s.turn; GameState.horizontalWalls = s.horizontalWalls || []; GameState.verticalWalls = s.verticalWalls || [];
+                        if(s.lastMove) addLogEntry(s.lastMove, GameState.turn === 2 ? 'p1' : 'p2');
+                        if (s.p1Pos.r === 0) { triggerWinState(1); } else if (s.p2Pos.r === s.gridSize - 1) { triggerWinState(2); }
+                        clearWallPreviews(); renderBoard(); updateHUD();
+                    }
+                } else { showToast("Room was closed by host."); leaveOnlineRoom(); }
+            }, (error) => { console.error("Listen Error", error); showToast("Network disconnect."); });
+        }
+
+        async function createOnlineRoom() {
+            if (!currentUser) return showToast("Authentication pending, please wait.");
+            document.getElementById('multiplayerModal').classList.add('opacity-0', 'pointer-events-none');
+            const roomId = generateRoomCode();
+            GameState.isOnline = true; GameState.roomId = roomId; GameState.myRole = 1;
+            resetLocalState(true);
+
+            const roomRef = doc(db, 'rooms', roomId);
+            await setDoc(roomRef, {
+                roomId: roomId, host: currentUser.uid, guest: null, status: 'waiting',
+                state: {
+                    gridSize: GameState.gridSize, p1Pos: GameState.p1Pos, p2Pos: GameState.p2Pos,
+                    p1WallsLeft: GameState.p1WallsLeft, p2WallsLeft: GameState.p2WallsLeft, turn: 1,
+                    horizontalWalls: [], verticalWalls: [], lastMove: "Host created match."
+                }
+            });
+
+            document.getElementById('networkStatus').innerText = `Online: Host (P1)`; document.getElementById('networkStatus').classList.add('text-indigo-400');
+            document.getElementById('roomCodeDisplay').innerText = roomId; document.getElementById('roomCodeDisplay').classList.remove('hidden');
+            document.getElementById('overlayRoomCode').innerText = roomId; document.getElementById('onlineWaitingOverlay').classList.remove('hidden');
+            document.getElementById('undoBtn').classList.add('hidden'); document.getElementById('leaveRoomBtn').classList.remove('hidden');
+            listenToRoom(roomId);
+        }
+
+        async function joinOnlineRoom(roomId) {
+            if (!currentUser) return showToast("Authentication pending, please wait.");
+            roomId = roomId.toUpperCase().trim();
+            if(roomId.length !== 5) return showToast("Invalid Room Code.");
+
+            const roomRef = doc(db, 'rooms', roomId);
+            const docSnap = await getDoc(roomRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.status === 'waiting' && data.guest === null) {
+                    await setDoc(roomRef, { guest: currentUser.uid, status: 'playing', state: { ...data.state, lastMove: "Player 2 joined." } }, { merge: true });
+                    document.getElementById('multiplayerModal').classList.add('opacity-0', 'pointer-events-none');
+                    GameState.isOnline = true; GameState.roomId = roomId; GameState.myRole = 2;
+                    document.getElementById('networkStatus').innerText = `Online: Guest (P2)`; document.getElementById('networkStatus').classList.add('text-indigo-400');
+                    document.getElementById('roomCodeDisplay').innerText = roomId; document.getElementById('roomCodeDisplay').classList.remove('hidden');
+                    document.getElementById('undoBtn').classList.add('hidden'); document.getElementById('leaveRoomBtn').classList.remove('hidden');
+                    listenToRoom(roomId);
+                } else if (data.host === currentUser.uid || data.guest === currentUser.uid) {
+                     GameState.isOnline = true; GameState.roomId = roomId; GameState.myRole = (data.host === currentUser.uid) ? 1 : 2;
+                     document.getElementById('multiplayerModal').classList.add('opacity-0', 'pointer-events-none');
+                     listenToRoom(roomId);
+                } else { showToast("Room is full or already in progress."); }
+            } else { showToast("Room not found!"); }
+        }
+
+        function leaveOnlineRoom() {
+            if(onlineUnsubscribe) onlineUnsubscribe();
+            GameState.isOnline = false; GameState.roomId = null; GameState.myRole = 1;
+            document.getElementById('onlineWaitingOverlay').classList.add('hidden');
+            document.getElementById('networkStatus').innerText = `Local Mode`; document.getElementById('networkStatus').classList.remove('text-indigo-400');
+            document.getElementById('roomCodeDisplay').classList.add('hidden');
+            document.getElementById('undoBtn').classList.remove('hidden'); document.getElementById('leaveRoomBtn').classList.add('hidden');
+            resetGame();
+        }
+
+        document.getElementById('multiplayerBtn').addEventListener('click', () => { document.getElementById('multiplayerModal').classList.remove('opacity-0', 'pointer-events-none'); });
+        document.getElementById('closeMultiplayerBtn').addEventListener('click', () => { document.getElementById('multiplayerModal').classList.add('opacity-0', 'pointer-events-none'); });
+        document.getElementById('createRoomBtn').addEventListener('click', createOnlineRoom);
+        document.getElementById('joinRoomBtn').addEventListener('click', () => { joinOnlineRoom(document.getElementById('joinRoomCode').value); });
+        
+        document.getElementById('copyCodeBtn').addEventListener('click', () => {
+            const code = document.getElementById('overlayRoomCode').innerText;
+            safeCopyToClipboard(code, () => {
+                const icon = document.getElementById('copyCodeBtn').querySelector('i');
+                icon.className = "fa-solid fa-check text-emerald-400"; showToast("Room code copied!");
+                setTimeout(() => icon.className = "fa-regular fa-copy", 2000);
+            });
+        });
+
+        document.getElementById('copyLinkBtn').addEventListener('click', () => {
+            const code = document.getElementById('overlayRoomCode').innerText;
+            const fullLink = window.location.origin + window.location.pathname + '?room=' + code;
+            safeCopyToClipboard(fullLink, () => {
+                const icon = document.getElementById('copyLinkBtn').querySelector('i');
+                const oClass = icon.className; icon.className = "fa-solid fa-check"; showToast("Invite link copied!");
+                setTimeout(() => icon.className = oClass, 2000);
+            });
+        });
+
+        document.getElementById('leaveRoomBtn').addEventListener('click', leaveOnlineRoom);
+
+        function getShortestPathDist(startR, startC, targetRow, hWalls, vWalls) {
+            const size = GameState.gridSize; const queue = [[startR, startC, 0]];
+            const visited = Array.from({ length: size }, () => Array(size).fill(false)); visited[startR][startC] = true;
+            let head = 0;
+            while (head < queue.length) {
+                const [r, c, dist] = queue[head++]; if (r === targetRow) return dist;
+                const neighbors = getValidOrthogonalSteps(r, c, size, hWalls, vWalls);
+                for (const [nr, nc] of neighbors) { if (!visited[nr][nc]) { visited[nr][nc] = true; queue.push([nr, nc, dist + 1]); } }
+            }
+            return Infinity; 
+        }
+
+        function checkValidPaths(cP1 = GameState.p1Pos, cP2 = GameState.p2Pos, cHW = GameState.horizontalWalls, cVW = GameState.verticalWalls) {
+            if (!runBFS(cP1, 0, GameState.gridSize, cHW, cVW)) return false;
+            if (!runBFS(cP2, GameState.gridSize - 1, GameState.gridSize, cHW, cVW)) return false;
+            return true;
+        }
+
+        function runBFS(startPos, targetRow, size, hWalls, vWalls) {
+            const queue = [[startPos.r, startPos.c]]; const visited = Array.from({ length: size }, () => Array(size).fill(false));
+            visited[startPos.r][startPos.c] = true; let head = 0;
+            while (head < queue.length) {
+                const [r, c] = queue[head++]; if (r === targetRow) return true;
+                const neighbors = getValidOrthogonalSteps(r, c, size, hWalls, vWalls);
+                for (const [nr, nc] of neighbors) { if (!visited[nr][nc]) { visited[nr][nc] = true; queue.push([nr, nc]); } }
+            }
+            return false;
+        }
+
+        function getValidOrthogonalSteps(r, c, size, hWalls, vWalls) {
+            const steps = [];
+            if (r > 0 && !hWalls.some(w => w.r === r - 1 && (w.c === c || w.c === c - 1))) steps.push([r - 1, c]);
+            if (r < size - 1 && !hWalls.some(w => w.r === r && (w.c === c || w.c === c - 1))) steps.push([r + 1, c]);
+            if (c > 0 && !vWalls.some(w => w.c === c - 1 && (w.r === r || w.r === r - 1))) steps.push([r, c - 1]);
+            if (c < size - 1 && !vWalls.some(w => w.c === c && (w.r === r || w.r === r - 1))) steps.push([r, c + 1]);
+            return steps;
+        }
+
+        function getValidPawnMoves(playerNum) {
+            const size = GameState.gridSize; const cP = playerNum === 1 ? GameState.p1Pos : GameState.p2Pos; const oP = playerNum === 1 ? GameState.p2Pos : GameState.p1Pos;
+            const hW = GameState.horizontalWalls; const vW = GameState.verticalWalls; const moves = []; const r = cP.r; const c = cP.c;
+
+            if (r > 0 && !hW.some(w => w.r === r - 1 && (w.c === c || w.c === c - 1))) {
+                if (oP.r === r - 1 && oP.c === c) {
+                    if ((r - 1) > 0 && !hW.some(w => w.r === r - 2 && (w.c === c || w.c === c - 1))) { moves.push({ r: r - 2, c: c }); } 
+                    else { if (c > 0 && !vW.some(w => w.c === c - 1 && (w.r === r - 1 || w.r === r - 2))) moves.push({ r: r - 1, c: c - 1 });
+                           if (c < size - 1 && !vW.some(w => w.c === c && (w.r === r - 1 || w.r === r - 2))) moves.push({ r: r - 1, c: c + 1 }); }
+                } else moves.push({ r: r - 1, c: c });
+            }
+            if (r < size - 1 && !hW.some(w => w.r === r && (w.c === c || w.c === c - 1))) {
+                if (oP.r === r + 1 && oP.c === c) {
+                    if ((r + 1) < size - 1 && !hW.some(w => w.r === r + 1 && (w.c === c || w.c === c - 1))) { moves.push({ r: r + 2, c: c }); } 
+                    else { if (c > 0 && !vW.some(w => w.c === c - 1 && (w.r === r + 1 || w.r === r))) moves.push({ r: r + 1, c: c - 1 });
+                           if (c < size - 1 && !vW.some(w => w.c === c && (w.r === r + 1 || w.r === r))) moves.push({ r: r + 1, c: c + 1 }); }
+                } else moves.push({ r: r + 1, c: c });
+            }
+            if (c > 0 && !vW.some(w => w.c === c - 1 && (w.r === r || w.r === r - 1))) {
+                if (oP.r === r && oP.c === c - 1) {
+                    if ((c - 1) > 0 && !vW.some(w => w.c === c - 2 && (w.r === r || w.r === r - 1))) { moves.push({ r: r, c: c - 2 }); } 
+                    else { if (r > 0 && !hW.some(w => w.r === r - 1 && (w.c === c - 1 || w.c === c - 2))) moves.push({ r: r - 1, c: c - 1 });
+                           if (r < size - 1 && !hW.some(w => w.r === r && (w.c === c - 1 || w.c === c - 2))) moves.push({ r: r + 1, c: c - 1 }); }
+                } else moves.push({ r: r, c: c - 1 });
+            }
+            if (c < size - 1 && !vW.some(w => w.c === c && (w.r === r || w.r === r - 1))) {
+                if (oP.r === r && oP.c === c + 1) {
+                    if ((c + 1) < size - 1 && !vW.some(w => w.c === c && (w.r === r || w.r === r - 1))) { moves.push({ r: r, c: c + 2 }); } 
+                    else { if (r > 0 && !hW.some(w => w.r === r - 1 && (w.c === c + 1 || w.c === c))) moves.push({ r: r - 1, c: c + 1 });
+                           if (r < size - 1 && !hW.some(w => w.r === r && (w.c === c + 1 || w.c === c))) moves.push({ r: r + 1, c: c + 1 }); }
+                } else moves.push({ r: r, c: c + 1 });
+            }
+            return moves;
+        }
+
+        function isWallPlacementAllowed(r, c, orientation, hWalls = GameState.horizontalWalls, vWalls = GameState.verticalWalls) {
+            const size = GameState.gridSize;
+            if (r < 0 || r >= size - 1 || c < 0 || c >= size - 1) return false;
+            if (orientation === 'H') {
+                if (hWalls.some(w => w.r === r && w.c === c)) return false;
+                if (vWalls.some(w => w.r === r && w.c === c)) return false;
+                if (hWalls.some(w => w.r === r && (w.c === c - 1 || w.c === c + 1))) return false;
+            } else {
+                if (vWalls.some(w => w.r === r && w.c === c)) return false;
+                if (hWalls.some(w => w.r === r && w.c === c)) return false;
+                if (vWalls.some(w => w.c === c && (w.r === r - 1 || w.r === r + 1))) return false;
+            }
+            return true;
+        }
+
+        function saveToHistory() {
+            if (GameState.isOnline) return; 
+            GameState.history.push({
+                p1Pos: { ...GameState.p1Pos }, p2Pos: { ...GameState.p2Pos }, p1WallsLeft: GameState.p1WallsLeft, p2WallsLeft: GameState.p2WallsLeft,
+                turn: GameState.turn, horizontalWalls: GameState.horizontalWalls.map(w=>({...w})), verticalWalls: GameState.verticalWalls.map(w=>({...w}))
+            });
+            document.getElementById('undoBtn').disabled = false;
+        }
+
+        function performUndo() {
+            if (GameState.isOnline || GameState.history.length === 0 || isBotThinking) return;
+            let previous = GameState.history.pop();
+            if (GameState.gameMode === 'pve') { while (previous.turn !== 1 && GameState.history.length > 0) previous = GameState.history.pop(); }
+            GameState.p1Pos = previous.p1Pos; GameState.p2Pos = previous.p2Pos; GameState.p1WallsLeft = previous.p1WallsLeft; GameState.p2WallsLeft = previous.p2WallsLeft;
+            GameState.turn = previous.turn; GameState.horizontalWalls = previous.horizontalWalls; GameState.verticalWalls = previous.verticalWalls;
+            if (GameState.history.length === 0) document.getElementById('undoBtn').disabled = true;
+            renderBoard(); updateHUD(); addLogEntry("System rolled back time.", "system");
+        }
+
+        const boardEl = document.getElementById('board');
+        function renderBoard() {
+            boardEl.innerHTML = ''; const size = GameState.gridSize;
+            let gridStyleStr = Array.from({length: size}, (_, i) => i < size - 1 ? `1fr var(--wall-thickness)` : '1fr').join(' ');
+            boardEl.style.gridTemplateColumns = gridStyleStr; boardEl.style.gridTemplateRows = gridStyleStr;
+
+            const isMyTurnOnline = GameState.isOnline && (GameState.myRole === GameState.turn);
+            const canInteract = !isBotThinking && (!GameState.isOnline || isMyTurnOnline);
+            const validMoves = (GameState.activeTool === 'move' && canInteract) ? getValidPawnMoves(GameState.turn) : [];
+            const domLimit = size * 2 - 1;
+
+            for (let r = 0; r < domLimit; r++) {
+                for (let c = 0; c < domLimit; c++) {
+                    if (r % 2 === 0 && c % 2 === 0) createCellElement(r / 2, c / 2, validMoves, canInteract);
+                    else createWallSpaceElement(r, c, canInteract);
+                }
+            }
+        }
+
+        function createCellElement(cellRow, cellCol, validMoves, canInteract) {
+            const cell = document.createElement('div'); cell.className = 'relative flex items-center justify-center rounded-xl transition-all duration-200 cursor-pointer'; cell.style.backgroundColor = 'var(--cell-bg)';
+            if (canInteract) {
+                cell.addEventListener('mouseenter', () => { cell.style.backgroundColor = 'var(--cell-hover)'; });
+                cell.addEventListener('mouseleave', () => { cell.style.backgroundColor = 'var(--cell-bg)'; });
+            }
+            const hasP1 = GameState.p1Pos.r === cellRow && GameState.p1Pos.c === cellCol; const hasP2 = GameState.p2Pos.r === cellRow && GameState.p2Pos.c === cellCol;
+
+            if (hasP1 || hasP2) {
+                const pawn = document.createElement('div'); pawn.className = 'w-4/5 h-4/5 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-black/40 transition-all active-glow';
+                if (hasP1) { pawn.style.backgroundColor = 'var(--p1-color)'; pawn.style.setProperty('--curr-glow', 'var(--p1-color)'); pawn.innerText = 'P1'; } 
+                else { pawn.style.backgroundColor = 'var(--p2-color)'; pawn.style.setProperty('--curr-glow', 'var(--p2-color)'); pawn.innerHTML = (GameState.gameMode === 'pve' && !GameState.isOnline) ? '<i class="fa-solid fa-robot"></i>' : 'P2'; }
+                cell.appendChild(pawn);
+            }
+
+            if (validMoves.some(m => m.r === cellRow && m.c === cellCol) && canInteract) {
+                const indicator = document.createElement('div'); indicator.className = 'absolute w-3.5 h-3.5 rounded-full bg-emerald-400 opacity-80 pointer-events-none animate-pulse';
+                cell.appendChild(indicator); cell.style.boxShadow = 'inset 0 0 10px rgba(52, 211, 153, 0.2)';
+                cell.addEventListener('click', () => handlePawnMove(cellRow, cellCol));
+            } else if (canInteract) {
+                cell.addEventListener('click', () => { if (GameState.activeTool === 'wall') showToast("Click directly inside wall slots (gutters) to place barricades!"); else showToast("Select a highlighted valid move indicator!"); });
+            }
+            boardEl.appendChild(cell);
+        }
+
+        function createWallSpaceElement(r, c, canInteract) {
+            const wallSpace = document.createElement('div'); wallSpace.style.backgroundColor = 'var(--wall-slot-bg)'; wallSpace.className = 'relative transition-all';
+            const intRow = Math.floor(r / 2); const intCol = Math.floor(c / 2); const wallPlaced = checkWallPlacedAtCoordinate(r, c);
+            
+            if (wallPlaced) {
+                wallSpace.style.backgroundColor = wallPlaced.player === 1 ? 'var(--p1-color)' : 'var(--p2-color)'; wallSpace.className += ' shadow-md shadow-black/50';
+            } else if (canInteract) {
+                wallSpace.addEventListener('mouseenter', () => { if (GameState.activeTool === 'wall') showWallPreview(intRow, intCol, GameState.wallOrientation); });
+                wallSpace.addEventListener('mouseleave', () => { if (GameState.activeTool === 'wall') clearWallPreviews(); });
+                wallSpace.addEventListener('click', () => { if (GameState.activeTool === 'wall') handleWallPlacement(intRow, intCol, GameState.wallOrientation); });
+            }
+            boardEl.appendChild(wallSpace);
+        }
+
+        function checkWallPlacedAtCoordinate(r, c) {
+            for (const w of GameState.horizontalWalls) if (r === w.r * 2 + 1 && (c === w.c * 2 || c === w.c * 2 + 1 || c === w.c * 2 + 2)) return w;
+            for (const w of GameState.verticalWalls) if (c === w.c * 2 + 1 && (r === w.r * 2 || r === w.r * 2 + 1 || r === w.r * 2 + 2)) return w;
+            return null;
+        }
+
+        function showWallPreview(r, c, orientation) {
+            clearWallPreviews();
+            if ((GameState.turn === 1 ? GameState.p1WallsLeft : GameState.p2WallsLeft) <= 0) return;
+            const isAllowed = isWallPlacementAllowed(r, c, orientation); let isSafe = true;
+            if (isAllowed) {
+                const tH = [...GameState.horizontalWalls]; const tV = [...GameState.verticalWalls];
+                (orientation === 'H' ? tH : tV).push({ r, c, player: GameState.turn });
+                isSafe = checkValidPaths(GameState.p1Pos, GameState.p2Pos, tH, tV);
+            }
+            const pColor = !isAllowed || !isSafe ? 'rgba(239, 68, 68, 0.7)' : 'rgba(16, 185, 129, 0.6)';
+            const targets = orientation === 'H' ? [{r: r*2+1, c: c*2}, {r: r*2+1, c: c*2+1}, {r: r*2+1, c: c*2+2}] : [{r: r*2, c: c*2+1}, {r: r*2+1, c: c*2+1}, {r: r*2+2, c: c*2+1}];
+            const domLim = GameState.gridSize * 2 - 1;
+            targets.forEach(t => {
+                if (t.r >= 0 && t.r < domLim && t.c >= 0 && t.c < domLim) {
+                    const el = boardEl.children[t.r * domLim + t.c];
+                    if (el && !checkWallPlacedAtCoordinate(t.r, t.c)) {
+                        el.style.backgroundColor = pColor; el.classList.add('wall-preview-active');
+                        if (!isAllowed || !isSafe) el.style.cursor = 'not-allowed';
+                    }
+                }
+            });
+        }
+
+        function clearWallPreviews() {
+            boardEl.querySelectorAll('.wall-preview-active').forEach(el => { el.style.backgroundColor = 'var(--wall-slot-bg)'; el.style.cursor = 'pointer'; el.classList.remove('wall-preview-active'); });
+        }
+
+        function handlePawnMove(toRow, toCol) {
+            if(GameState.isOnline && GameState.myRole !== GameState.turn) return;
+            saveToHistory();
+            const pStr = GameState.turn === 1 ? "P1" : (GameState.gameMode === 'pve' && !GameState.isOnline ? 'BOT' : 'P2');
+            const logMsg = `${pStr} moved to (${toRow},${toCol})`;
+            if (GameState.turn === 1) GameState.p1Pos = { r: toRow, c: toCol }; else GameState.p2Pos = { r: toRow, c: toCol };
+            if (!GameState.isOnline) addLogEntry(logMsg, GameState.turn === 1 ? "p1" : "p2");
+            GameState.turn = GameState.turn === 1 ? 2 : 1;
+            if (GameState.isOnline) { pushStateToDb(logMsg); } 
+            else {
+                if (GameState.turn === 2 && GameState.p1Pos.r === 0) { triggerWinState(1); return; }
+                if (GameState.turn === 1 && GameState.p2Pos.r === GameState.gridSize - 1) { triggerWinState(2); return; }
+                finishTurnLocal();
+            }
+        }
+
+        function handleWallPlacement(r, c, orientation) {
+            if(GameState.isOnline && GameState.myRole !== GameState.turn) return false;
+            const cWalls = GameState.turn === 1 ? GameState.p1WallsLeft : GameState.p2WallsLeft;
+            if (cWalls <= 0) { showToast("Out of tactical walls!"); return false; }
+            if (!isWallPlacementAllowed(r, c, orientation)) { showToast("Collision detected!"); return false; }
+            const tH = [...GameState.horizontalWalls]; const tV = [...GameState.verticalWalls]; const nW = { r, c, player: GameState.turn };
+            (orientation === 'H' ? tH : tV).push(nW);
+            if (!checkValidPaths(GameState.p1Pos, GameState.p2Pos, tH, tV)) { showToast("Illegal Placement! Path blocked."); return false; }
+            saveToHistory();
+            if (orientation === 'H') GameState.horizontalWalls.push(nW); else GameState.verticalWalls.push(nW);
+            if (GameState.turn === 1) GameState.p1WallsLeft--; else GameState.p2WallsLeft--;
+            const pStr = GameState.turn === 1 ? "P1" : (GameState.gameMode === 'pve' && !GameState.isOnline ? 'BOT' : 'P2');
+            const logMsg = `${pStr} built ${orientation} wall at (${r},${c})`;
+            if (!GameState.isOnline) addLogEntry(logMsg, GameState.turn === 1 ? "p1" : "p2");
+            GameState.turn = GameState.turn === 1 ? 2 : 1;
+            if (GameState.isOnline) { pushStateToDb(logMsg); } else { finishTurnLocal(); }
+            return true;
+        }
+
+        function finishTurnLocal() {
+            clearWallPreviews(); renderBoard(); updateHUD();
+            if (GameState.gameMode === 'pve' && !GameState.isOnline && GameState.turn === 2) { executeBotMove(); }
+        }
+
+        function updateHUD() {
+            document.getElementById('p1WallCount').innerText = GameState.p1WallsLeft; document.getElementById('p2WallCount').innerText = GameState.p2WallsLeft;
+            const p2Avatar = document.getElementById('p2Avatar'); const p2Name = document.getElementById('p2Name');
+            if (GameState.isOnline) {
+                p2Avatar.innerText = 'P2'; p2Name.innerText = GameState.myRole === 2 ? 'Player 2 (You)' : 'Player 2';
+                document.getElementById('p1Avatar').innerText = GameState.myRole === 1 ? 'P1 (You)' : 'P1';
+            } else if (GameState.gameMode === 'pve') {
+                p2Avatar.innerHTML = '<i class="fa-solid fa-robot"></i>'; p2Name.innerText = `AI Bot (${GameState.botDifficulty.toUpperCase()})`;
+            } else { p2Avatar.innerText = 'P2'; p2Name.innerText = 'Player 2'; }
+
+            const p1Card = document.getElementById('p1Card'); const p2Card = document.getElementById('p2Card');
+            if (GameState.turn === 1) {
+                p1Card.classList.add('shadow-[0_0_15px_rgba(239,68,68,0.2)]'); p1Card.style.borderColor = 'var(--p1-color)';
+                p2Card.classList.remove('shadow-[0_0_15px_rgba(59,130,246,0.2)]'); p2Card.style.borderColor = 'transparent';
+            } else {
+                p2Card.classList.add('shadow-[0_0_15px_rgba(59,130,246,0.2)]'); p2Card.style.borderColor = 'var(--p2-color)';
+                p1Card.classList.remove('shadow-[0_0_15px_rgba(239,68,68,0.2)]'); p1Card.style.borderColor = 'transparent';
+            }
+        }
+
+        function addLogEntry(text, type = 'system') {
+            const logBox = document.getElementById('moveLog'); const entry = document.createElement('div');
+            let tColor = type === 'p1' ? 'text-red-400 font-medium' : (type === 'p2' ? 'text-blue-400 font-medium' : 'text-amber-400');
+            entry.className = `text-[11px] leading-relaxed ${tColor}`; entry.innerHTML = `<span class="opacity-50 select-none">[#]</span> ${text}`;
+            logBox.appendChild(entry); logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function triggerWinState(winnerNum) {
+            if(document.getElementById('winModal').classList.contains('opacity-0') === false) return; 
+            const winModal = document.getElementById('winModal');
+            let pName = winnerNum === 1 ? 'Player 1' : 'Player 2';
+            if(winnerNum === 2 && GameState.gameMode === 'pve' && !GameState.isOnline) pName = 'The AI Bot';
+            document.getElementById('winnerLabel').innerText = `${pName} has reached the terminal baseline!`;
+            const wColor = winnerNum === 1 ? 'var(--p1-color)' : 'var(--p2-color)'; const badge = document.getElementById('winBadge');
+            badge.style.backgroundColor = wColor; badge.style.setProperty('--curr-glow', wColor);
+            badge.innerHTML = (winnerNum === 2 && GameState.gameMode === 'pve' && !GameState.isOnline) ? '<i class="fa-solid fa-robot text-white"></i>' : '<i class="fa-solid fa-crown text-white"></i>';
+            winModal.classList.remove('opacity-0', 'pointer-events-none'); document.getElementById('winContent').classList.remove('scale-90');
+            
+            if(GameState.isOnline && GameState.myRole === 1) {
+                doc(db, 'rooms', GameState.roomId).then(ref => { setDoc(ref, { status: 'finished' }, { merge: true }); });
+            }
+        }
+
+        let toastTimeout = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast'); document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2'); toast.classList.add('opacity-100', 'translate-y-0');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => { toast.classList.remove('opacity-100', 'translate-y-0'); toast.classList.add('opacity-0', '-translate-y-2'); }, 3000);
+        }
+
+        function resetLocalState(skipRender) {
+            GameState.p1Pos = { r: GameState.gridSize - 1, c: Math.floor(GameState.gridSize / 2) }; GameState.p2Pos = { r: 0, c: Math.floor(GameState.gridSize / 2) };
+            GameState.p1WallsLeft = GameState.wallCount; GameState.p2WallsLeft = GameState.wallCount;
+            GameState.turn = 1; GameState.horizontalWalls = []; GameState.verticalWalls = []; GameState.history = []; isBotThinking = false; 
+            document.getElementById('undoBtn').disabled = true;
+            document.getElementById('moveLog').innerHTML = `<div class="text-indigo-400 text-[10px] uppercase tracking-wider border-b border-gray-800/60 pb-1 mb-1">System Initialized</div>`;
+            if(!skipRender) { renderBoard(); updateHUD(); }
+        }
+
+        function resetGame() {
+            resetLocalState(false);
+            if (GameState.isOnline && GameState.myRole === 1) {
+                pushStateToDb("Host reset the board.");
+                const roomRef = doc(db, 'rooms', GameState.roomId);
+                setDoc(roomRef, { status: 'playing' }, { merge: true });
+            }
+        }
+
+        function executeBotMove() {
+            isBotThinking = true; addLogEntry(`AI calculating best strategy...`, 'system');
+            setTimeout(() => {
+                if (GameState.botDifficulty === 'easy') playEasyBot();
+                else if (GameState.botDifficulty === 'medium') playMediumBot();
+                else playHardBot();
+                isBotThinking = false;
+            }, 800);
+        }
+
+        function getBestBotMove() {
+            const moves = getValidPawnMoves(2); let bestM = null, minD = Infinity;
+            for (const m of moves) {
+                const d = getShortestPathDist(m.r, m.c, GameState.gridSize - 1, GameState.horizontalWalls, GameState.verticalWalls);
+                if (d < minD) { minD = d; bestM = m; }
+            }
+            return bestM || moves[Math.floor(Math.random() * moves.length)];
+        }
+
+        function playEasyBot() {
+            if (GameState.p2WallsLeft > 0 && Math.random() < 0.2) {
+                for (let i = 0; i < 50; i++) { if (handleWallPlacement(Math.floor(Math.random()*(GameState.gridSize-1)), Math.floor(Math.random()*(GameState.gridSize-1)), Math.random()>0.5?'H':'V')) return; }
+            }
+            const m = getValidPawnMoves(2); handlePawnMove(m[Math.floor(Math.random()*m.length)].r, m[Math.floor(Math.random()*m.length)].c);
+        }
+
+        function playMediumBot() {
+            if (GameState.p2WallsLeft > 0 && Math.random() < 0.25) { if (handleWallPlacement(GameState.p1Pos.r > 0 ? GameState.p1Pos.r - 1 : GameState.p1Pos.r, GameState.p1Pos.c, 'H')) return; }
+            const b = getBestBotMove(); handlePawnMove(b.r, b.c);
+        }
+
+        function playHardBot() {
+            const p1D = getShortestPathDist(GameState.p1Pos.r, GameState.p1Pos.c, 0, GameState.horizontalWalls, GameState.verticalWalls);
+            const p2D = getShortestPathDist(GameState.p2Pos.r, GameState.p2Pos.c, GameState.gridSize - 1, GameState.horizontalWalls, GameState.verticalWalls);
+            let bestW = null, maxA = p1D - p2D;
+
+            if (GameState.p2WallsLeft > 0 && maxA <= 1) {
+                const rMin = Math.max(0, GameState.p1Pos.r - 2), rMax = Math.min(GameState.gridSize - 2, GameState.p1Pos.r + 2);
+                const cMin = Math.max(0, GameState.p1Pos.c - 2), cMax = Math.min(GameState.gridSize - 2, GameState.p1Pos.c + 2);
+                for (let r = rMin; r <= rMax; r++) {
+                    for (let c = cMin; c <= cMax; c++) {
+                        for (let o of ['H', 'V']) {
+                            if (isWallPlacementAllowed(r, c, o)) {
+                                const tH = [...GameState.horizontalWalls]; const tV = [...GameState.verticalWalls];
+                                (o === 'H' ? tH : tV).push({ r, c, player: 2 });
+                                if (checkValidPaths(GameState.p1Pos, GameState.p2Pos, tH, tV)) {
+                                    const a = getShortestPathDist(GameState.p1Pos.r, GameState.p1Pos.c, 0, tH, tV) - getShortestPathDist(GameState.p2Pos.r, GameState.p2Pos.c, GameState.gridSize - 1, tH, tV);
+                                    if (a > maxA) { maxA = a; bestW = { r, c, o }; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (bestW && (maxA > (p1D - p2D))) { if(handleWallPlacement(bestW.r, bestW.c, bestW.o)) return; }
+            const b = getBestBotMove(); handlePawnMove(b.r, b.c);
+        }
+
+        document.getElementById('toolMoveBtn').addEventListener('click', () => {
+            GameState.activeTool = 'move';
+            document.getElementById('toolMoveBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center gap-1.5";
+            document.getElementById('toolWallBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition-all flex items-center gap-1.5";
+            renderBoard();
+        });
+
+        document.getElementById('toolWallBtn').addEventListener('click', () => {
+            GameState.activeTool = 'wall';
+            document.getElementById('toolWallBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center gap-1.5";
+            document.getElementById('toolMoveBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition-all flex items-center gap-1.5";
+            renderBoard();
+        });
+
+        function toggleWallOrientation() { GameState.wallOrientation = GameState.wallOrientation === 'H' ? 'V' : 'H'; document.getElementById('rotateText').innerText = GameState.wallOrientation === 'H' ? 'Horizontal' : 'Vertical'; clearWallPreviews(); }
+        document.getElementById('rotateWallBtn').addEventListener('click', toggleWallOrientation); window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); toggleWallOrientation(); } }); boardEl.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleWallOrientation(); });
+
+        document.getElementById('gameModeSelect').addEventListener('change', (e) => { if (e.target.value === 'pve') document.getElementById('aiDifficultyWrapper').classList.remove('hidden'); else document.getElementById('aiDifficultyWrapper').classList.add('hidden'); });
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('gameModeSelect').value = GameState.gameMode; document.getElementById('aiDifficultySelect').value = GameState.botDifficulty;
+            if (GameState.gameMode === 'pve') document.getElementById('aiDifficultyWrapper').classList.remove('hidden'); else document.getElementById('aiDifficultyWrapper').classList.add('hidden');
+            document.getElementById('gridSizeSelect').value = GameState.gridSize; document.getElementById('wallCountSlider').value = GameState.wallCount; document.getElementById('wallCountVal').innerText = GameState.wallCount; document.getElementById('wallThickSlider').value = GameState.wallThickness; document.getElementById('wallThickVal').innerText = `${GameState.wallThickness}px`;
+            document.getElementById('settingsModal').classList.remove('opacity-0', 'pointer-events-none');
+        });
+
+        document.getElementById('closeSettingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('opacity-0', 'pointer-events-none'));
+        document.getElementById('wallCountSlider').addEventListener('input', (e) => document.getElementById('wallCountVal').innerText = e.target.value);
+        document.getElementById('wallThickSlider').addEventListener('input', (e) => document.getElementById('wallThickVal').innerText = `${e.target.value}px`);
+
+        document.getElementById('applySettingsBtn').addEventListener('click', () => {
+            if(GameState.isOnline) { showToast("Cannot change physical settings during Online Play."); document.getElementById('settingsModal').classList.add('opacity-0', 'pointer-events-none'); return; }
+            GameState.gameMode = document.getElementById('gameModeSelect').value; GameState.botDifficulty = document.getElementById('aiDifficultySelect').value; GameState.gridSize = parseInt(document.getElementById('gridSizeSelect').value);
+            GameState.wallCount = parseInt(document.getElementById('wallCountSlider').value); GameState.wallThickness = parseInt(document.getElementById('wallThickSlider').value);
+            GameState.p1Color = document.getElementById('p1ColorPicker').value; GameState.p2Color = document.getElementById('p2ColorPicker').value; GameState.boardBg = document.getElementById('boardColorPicker').value;
+            document.documentElement.style.setProperty('--p1-color', GameState.p1Color); document.documentElement.style.setProperty('--p2-color', GameState.p2Color);
+            document.documentElement.style.setProperty('--board-bg', GameState.boardBg); document.documentElement.style.setProperty('--wall-thickness', `${GameState.wallThickness}px`);
+            document.getElementById('settingsModal').classList.add('opacity-0', 'pointer-events-none'); resetGame();
+        });
+
+        document.getElementById('rulesBtn').addEventListener('click', () => document.getElementById('rulesModal').classList.remove('opacity-0', 'pointer-events-none'));
+        document.getElementById('closeRulesBtn').addEventListener('click', () => document.getElementById('rulesModal').classList.add('opacity-0', 'pointer-events-none'));
+        document.getElementById('gotItBtn').addEventListener('click', () => document.getElementById('rulesModal').classList.add('opacity-0', 'pointer-events-none'));
+        document.getElementById('resetBtn').addEventListener('click', resetGame); document.getElementById('undoBtn').addEventListener('click', performUndo);
+        document.getElementById('playAgainBtn').addEventListener('click', () => { document.getElementById('winModal').classList.add('opacity-0', 'pointer-events-none'); resetGame(); });
+
+        window.onload = function() {
+            document.documentElement.style.setProperty('--p1-color', GameState.p1Color); document.documentElement.style.setProperty('--p2-color', GameState.p2Color);
+            document.documentElement.style.setProperty('--board-bg', GameState.boardBg); document.documentElement.style.setProperty('--wall-thickness', `${GameState.wallThickness}px`);
+            resetGame();
+        };
+
+    </script>
+</body>
+</html>
+
+
+```
